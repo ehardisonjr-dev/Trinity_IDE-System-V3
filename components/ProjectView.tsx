@@ -3,6 +3,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Project, ChatMessage, ActivityLog, CodeProposal, SystemConfig } from '../types';
 import { trinity } from '../services/geminiService';
 
+// Prompt-size limits to prevent Gemini token overflow
+const MAX_CONTEXT_FILES = 20;
+const MAX_CONTEXT_CHARS = 2000;
+const MAX_RESEARCH_CHARS = 8000;
+const MIN_KEYWORD_LENGTH = 2; // filters out short stop-words for file relevance matching
+
 interface ProjectViewProps {
   project: Project;
   onUpdateProject: (p: Project) => void;
@@ -53,12 +59,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, onUpdateProject, onA
 
     try {
       // Build a bounded workspace context: prefer relevant files, cap by count and characters
-      const MAX_CONTEXT_FILES = 20;
-      const MAX_CONTEXT_CHARS = 2000;
-      const MAX_RESEARCH_CHARS = 8000;
-
       const allFileNames = project.files.map(f => f.name);
-      const keywords = inputValue.toLowerCase().split(/\W+/).filter(w => w.length > 2);
+      const keywords = inputValue.toLowerCase().split(/\W+/).filter(w => w.length > MIN_KEYWORD_LENGTH);
       const relevant = allFileNames.filter(name =>
         keywords.some(kw => name.toLowerCase().includes(kw))
       );

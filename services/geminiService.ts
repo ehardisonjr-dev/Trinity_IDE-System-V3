@@ -59,7 +59,7 @@ export class TrinityService {
       id: Math.random().toString(),
       timestamp: Date.now(),
       agent: 'Conductor',
-      message: `Prompt size: ${userText.length} chars (context: ${context.length} chars, prompt: ${prompt.length} chars).`,
+      message: `Prompt size: ${userText.length} chars (context: ${context?.length ?? 0} chars, prompt: ${prompt.length} chars).`,
       type: 'info'
     });
 
