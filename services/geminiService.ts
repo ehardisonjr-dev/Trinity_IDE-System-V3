@@ -28,11 +28,11 @@ export class TrinityService {
       type: 'info'
     });
 
+    // Static system instruction — no dynamic context interpolation to prevent token overflow
     const genConfig: any = {
       temperature: 0.7,
       systemInstruction: `You are the "Conductor" of the Trinity Agent System.
-      Current Workspace Context: ${context}
-      
+
       Your goal is to fulfill user requests by orchestrating your sub-agents:
       1. Research Team: Used for technical grounding.
       2. Coder: Synthesizes implementations.
@@ -50,6 +50,19 @@ export class TrinityService {
       Keep conversational text professional and concise.`
     };
 
+    // Build the user message: bounded workspace context section (if any) + user prompt
+    const userText = context
+      ? `[Workspace Context]\n${context}\n\n[User Request]\n${prompt}`
+      : prompt;
+
+    onLog({
+      id: Math.random().toString(),
+      timestamp: Date.now(),
+      agent: 'Conductor',
+      message: `Prompt size: ${userText.length} chars (context: ${context?.length ?? 0} chars, prompt: ${prompt.length} chars).`,
+      type: 'info'
+    });
+
     // Apply thinking budget for Gemini 3 and 2.5 series models with correct limits as per guidelines
     if (isPrecision && (model.includes('pro') || model.includes('gemini-3') || model.includes('gemini-2.5'))) {
       const budget = model.includes('pro') ? 32768 : 24576;
@@ -59,7 +72,7 @@ export class TrinityService {
     try {
       const response = await ai.models.generateContent({
         model,
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: [{ role: 'user', parts: [{ text: userText }] }],
         config: genConfig
       });
 
