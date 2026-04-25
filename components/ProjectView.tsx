@@ -52,7 +52,31 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, onUpdateProject, onA
     setValidationReport(null);
 
     try {
-      const filesContext = project.files.map(f => f.name).join(', ') || 'No files yet.';
+      // Build a bounded workspace context: prefer relevant files, cap by count and characters
+      const MAX_CONTEXT_FILES = 20;
+      const MAX_CONTEXT_CHARS = 2000;
+      const MAX_RESEARCH_CHARS = 8000;
+
+      const allFileNames = project.files.map(f => f.name);
+      const keywords = inputValue.toLowerCase().split(/\W+/).filter(w => w.length > 2);
+      const relevant = allFileNames.filter(name =>
+        keywords.some(kw => name.toLowerCase().includes(kw))
+      );
+      const remaining = allFileNames.filter(n => !relevant.includes(n));
+      const ordered = [...relevant, ...remaining].slice(0, MAX_CONTEXT_FILES);
+      let filesContext = ordered.join(', ');
+      if (filesContext.length > MAX_CONTEXT_CHARS) {
+        filesContext = filesContext.slice(0, MAX_CONTEXT_CHARS) + '…';
+      }
+      if (!filesContext) filesContext = 'No files yet.';
+
+      onAddLog({
+        id: Math.random().toString(),
+        timestamp: Date.now(),
+        agent: 'System',
+        message: `Workspace context: ${filesContext.length} chars (${ordered.length} files referenced).`,
+        type: 'info'
+      });
       
       // Determine if research is needed based on simple keyword heuristic
       const needsResearch = /research|search|find|documentation|info|who is|what is/i.test(inputValue);
@@ -60,9 +84,19 @@ const ProjectView: React.FC<ProjectViewProps> = ({ project, onUpdateProject, onA
 
       if (needsResearch) {
         const researchResult = await trinity.research(inputValue, config, onAddLog);
-        augmentedPrompt = `Research Findings:\n${researchResult.text}\n\nOriginal Request: ${inputValue}`;
+        const truncatedText = researchResult.text && researchResult.text.length > MAX_RESEARCH_CHARS
+          ? researchResult.text.slice(0, MAX_RESEARCH_CHARS) + '\n…[research truncated]'
+          : researchResult.text;
+        augmentedPrompt = `Research Findings:\n${truncatedText}\n\nOriginal Request: ${inputValue}`;
         // Store sources for display as required by guidelines for search grounding
         setResearchSources(prev => [...researchResult.sources, ...prev]);
+        onAddLog({
+          id: Math.random().toString(),
+          timestamp: Date.now(),
+          agent: 'Research Lead',
+          message: `Research text: ${researchResult.text?.length ?? 0} chars (sending ${truncatedText?.length ?? 0} chars).`,
+          type: 'info'
+        });
       }
 
       const response = await trinity.conduct(augmentedPrompt, filesContext, aiMode, onAddLog, config);
